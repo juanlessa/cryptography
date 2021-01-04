@@ -144,6 +144,27 @@ def rsa_decryption(ciphertext, private_key,hashFunction_name=None):
 ####################################################################################################    
 
 hashFunctions = ["SHA-256", "SHA-384", "SHA-512"]
+hashFunctions_name = hashFunctions[-1]
+
+fileToSave_name = "rsaprivate"
+keySize = 2048
+
+generate_rsa_key_pair(keySize,fileToSave_name)
+
+private_key = load_rsa_private_key(fileToSave_name)
+print(private_key)
+public_key = load_rsa_public_key(str(fileToSave_name+".pub"))
+print(public_key)
+'''
+sig = rsa_sign(private_key,"hello world")
+print(sig)
+rsa_verify(public_key,"hello world", sig)
+'''
+ct = rsa_encryption("hello world",public_key,hashFunctions_name)
+print(ct)
+pt = rsa_decryption(ct,private_key,hashFunctions_name)
+print(pt)
+
 
 
 

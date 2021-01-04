@@ -1,5 +1,5 @@
-from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 
@@ -9,6 +9,7 @@ def dh_generate_parameters(key_size=2048):
     parameter_numbers = parameters.parameter_numbers()
     p = parameter_numbers.p
     g = parameter_numbers.g
+
     return [p,g]
 ####################################################################################################
     
