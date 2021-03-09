@@ -8,48 +8,80 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers import algorithms
-from cryptography.hazmat.primitives.ciphers import modes 
+from cryptography.hazmat.primitives.ciphers import modes
 from cryptography.hazmat.backends import default_backend
 
 
+def addPadding(messageBlock: bytes, algorithm_name: str) -> bytes:
+    """This function serves to add padding to a message block according to a chosen
+    cryptographic algorithm
 
+    Args:
+        messageBlock (bytes): bytes block to add padding
+        algorithm_name (str): algorithm name ("3DES" or "AES-128")
 
-def addPadding(messageBlock, algorithm_name):
-    #select block length
+    Returns:
+        bytes: message block with padding
+    """
+
+    # select block length
     if algorithm_name == "3DES":
         LengthBlock = 8
     else:
-        #AES-128
+        # AES-128
         LengthBlock = 16
-    #missing space to complete block
+    # missing space to complete block
     sizePadding = LengthBlock - (len(messageBlock) % LengthBlock)
-    #block with de correct length -> message + padding
+    # block with de correct length -> message + padding
     messageBlock = messageBlock + bytes([sizePadding]*sizePadding)
-    return messageBlock  
-####################################################################################################
+    return messageBlock
+###############################################################################
 
-def removepadding(messageBlock):
-    #select block length
+
+def removepadding(messageBlock: bytes) -> bytes:
+    """This function serves to remove padding to a message block, the length
+    of "messageBlock" is used to know the cryptographic algorithm (length 16 =
+    "AES-128", length 8 = "3DES")
+
+    Args:
+        messageBlock (bytes): bytes block to remove padding
+
+    Returns:
+        bytes: message block without padding
+    """
+    # select block length
     LengthBlock = len(messageBlock)
-    #descovering the size of padding used
+    # descovering the size of padding used
     sizePadding = int(messageBlock[-1])
-    #removing padding
+    # removing padding
     messageBlock = messageBlock[:LengthBlock - sizePadding]
-    return messageBlock 
-####################################################################################################
+    return messageBlock
+###############################################################################
 
-def generate_key(algorithm_name, salt):  
-    #get password to encryption
+
+def generate_key(algorithm_name: str, salt: bytes) -> bytes:
+    """This function serves to generate a key using PBKDF derivation, it will
+    ask the user to enter a password
+
+    Args:
+        algorithm_name (str): algorithm name ("3DES", "AES-128" or "ChaCha20")
+        salt (bytes): salt to use in the key derivation
+
+    Returns:
+        bytes: key after PBKDF derivation
+    """
+
+    # get password to encryption
     password = getpass()
-    password = password.encode()    #password string to binary
+    password = password.encode()  # password string to binary
 
-    #select key length
+    # select key length
     if algorithm_name == '3DES':
         length = 24
     elif algorithm_name == 'ChaCha20':
         length = 32
     else:
-        #AES-128
+        # AES-128
         length = 16
     pbkdf = PBKDF2HMAC(
         salt=salt,
@@ -59,35 +91,52 @@ def generate_key(algorithm_name, salt):
         backend=default_backend()
     )
 
-    #generate key
-    key = pbkdf.derive(password)    #type key == byte
+    # generate key
+    key = pbkdf.derive(password)  # type key == byte
 
     return key
-####################################################################################################
+###############################################################################
 
-def encrypt(fileToEncrypt_name, fileToSave_name, algorithm_name, cipherMode_name=None):
-    #generate salt
+
+def encrypt(fileToEncrypt_name: str,
+            fileToSave_name: str,
+            algorithm_name: str,
+            cipherMode_name=None) -> None:
+    """Function to encrypt files according an algorithm and cipher
+    name, the encrypted will be saved with "fileToSave_name" name
+
+    Args:
+        fileToEncrypt_name (str): file name to encrypt, this file need exist
+        fileToSave_name (str): file name to save encrypted message, if this
+         file already exist, it wil be overwriten
+        algorithm_name (str): algorithm name ("3DES", "AES-128" or "ChaCha20")
+        cipherMode_name (str, optional): cipher mode name ("ECB", "CFB", "CBC",
+        "OFB"). Defaults to None. you shouldn't use this argument if
+        algorithm_name = "ChaCha20"
+    """
+
+    # generate salt
     salt = os.urandom(16)
-    #gemerate key
+    # gemerate key
     key = generate_key(algorithm_name, salt)
-    #algorithm and block length
+    # algorithm and block length
     if algorithm_name == 'ChaCha20':
         nonce = token_bytes(16)
         algorithm = algorithms.ChaCha20(key, nonce)
-        #chacha20 dont use block, but i will divide the message in blocks 
+        # chacha20 dont use block, but i will divide the message in blocks
         blockLength = 128
     elif algorithm_name == '3DES':
         blockLength = 8
         algorithm = algorithms.TripleDES(key)
     else:
-        #AES-128
+        # AES-128
         blockLength = 16
         algorithm = algorithms.AES(key)
-    #gemerate iv
+    # gemerate iv
     iv = None
     if algorithm_name != "ChaCha20" and cipherMode_name != "ECB":
         iv = token_bytes(blockLength)
-    #cipher mode
+    # cipher mode
     if cipherMode_name == "CBC":
         cipher_mode = modes.CBC(iv)
     elif cipherMode_name == "CFB":
@@ -97,16 +146,16 @@ def encrypt(fileToEncrypt_name, fileToSave_name, algorithm_name, cipherMode_name
     elif cipherMode_name == "ECB":
         cipher_mode = modes.ECB()
     else:
-        #chacha20 -> no use cipher mode
+        # chacha20 -> no use cipher mode
         cipher_mode = None
-    #cipher definition
+    # cipher definition
     cipher = Cipher(algorithm, cipher_mode)
-    #encrypt init
+    # encrypt init
     encryptor = cipher.encryptor()
-    #open files
-    fileToEncrypt = open(fileToEncrypt_name, 'rb')   #file with plain text
-    fileToSave = open(fileToSave_name, 'wb')        #file to store encrypted message
-    #write salt, iv and nonce
+    # open files
+    fileToEncrypt = open(fileToEncrypt_name, 'rb')  # file with plain text
+    fileToSave = open(fileToSave_name, 'wb')  # file to store encrypted message
+    # write salt, iv and nonce
     fileToSave.write(b64encode(salt))
     if iv != None:
         fileToSave.write(b64encode(iv))
@@ -114,59 +163,74 @@ def encrypt(fileToEncrypt_name, fileToSave_name, algorithm_name, cipherMode_name
         fileToSave.write(b64encode(nonce))
     while True:
         block = fileToEncrypt.read(blockLength)
-        #last block length == blocklength
+        # last block length == blocklength
         if block == "":
             break
-        #last block length < blockLength
+        # last block length < blockLength
         if len(block) != blockLength:
             break
-        #encrypt block
+        # encrypt block
         block = encryptor.update(block)
-        #write
+        # write
         fileToSave.write(b64encode(block))
-    #padding
+    # padding
     if algorithm_name != "ChaCha20":
         block = addPadding(block, algorithm_name)
-    #encrypt block
+    # encrypt block
     block = encryptor.update(block)
-    #write
+    # write
     fileToSave.write(b64encode(block))
 
-
-    #close files
+    # close files
     fileToEncrypt.close()
     fileToSave.close()
-####################################################################################################
+###############################################################################
 
-def decrypt(fileToDecrypt_name, fileToSave_name, algorithm_name, cipherMode_name=None):
-    #open files
+
+def decrypt(fileToDecrypt_name: str,
+            fileToSave_name: str,
+            algorithm_name: str,
+            cipherMode_name=None) -> None:
+    """Function to decrypt files according an algorithm and cipher
+    name, the decrypted will be saved with "fileToDecrypt_name" name
+
+    Args:
+        fileToDecrypt_name (str): file name to decrypt, this file need exist
+        fileToSave_name (str): file name to save decrypted message, if this
+         file already exist, it wil be overwriten
+        algorithm_name (str): algorithm name ("3DES", "AES-128" or "ChaCha20")
+        cipherMode_name (str, optional): cipher mode name ("ECB", "CFB", "CBC",
+        "OFB"). Defaults to None. you shouldn't use this argument if
+        algorithm_name = "ChaCha20"
+    """
+    # open files
     fileToDecrypt = open(fileToDecrypt_name, 'rb')
     fileToSave = open(fileToSave_name, 'wb')
-    #get salt
+    # get salt
     salt = fileToDecrypt.read(ceil(16/3)*4)
     salt = b64decode(salt)
-    #gemerate key
+    # gemerate key
     key = generate_key(algorithm_name, salt)
-    #algorithm and block length
+    # algorithm and block length
     if algorithm_name == 'ChaCha20':
-        #geting nonce
+        # geting nonce
         nonce = fileToDecrypt.read(ceil(16/3)*4)
         nonce = b64decode(nonce)
         algorithm = algorithms.ChaCha20(key, nonce)
-        #chacha20 dont use block, but i will divide the message in blocks 
+        # chacha20 dont use block, but i will divide the message in blocks
         blockLength = 128
     elif algorithm_name == '3DES':
         blockLength = 8
         algorithm = algorithms.TripleDES(key)
     else:
-        #AES-128
+        # AES-128
         blockLength = 16
         algorithm = algorithms.AES(key)
-    #get iv
+    # get iv
     if algorithm_name != "ChaCha20" and cipherMode_name != "ECB":
         iv = fileToDecrypt.read(ceil(blockLength/3)*4)
         iv = b64decode(iv)
-    #cipher mode
+    # cipher mode
     if cipherMode_name == "CBC":
         cipher_mode = modes.CBC(iv)
     elif cipherMode_name == "CFB":
@@ -176,55 +240,56 @@ def decrypt(fileToDecrypt_name, fileToSave_name, algorithm_name, cipherMode_name
     elif cipherMode_name == "ECB":
         cipher_mode = modes.ECB()
     else:
-        #chacha20 -> dont use cipher mode
+        # chacha20 -> dont use cipher mode
         cipher_mode = None
-    #cipher definition
+    # cipher definition
     cipher = Cipher(algorithm, cipher_mode)
-    #decrypt init
+    # decrypt init
     decryptor = cipher.decryptor()
-    
+
     nextBlock = b64decode(fileToDecrypt.read(ceil(blockLength/3)*4))
     while True:
         block = nextBlock
         nextBlock = b64decode(fileToDecrypt.read(ceil(blockLength/3)*4))
-        #decrypt block
+        # decrypt block
         block = decryptor.update(block)
-        #block == last block
+        # block == last block
         if nextBlock == b"":
             break
-        #write
+        # write
         fileToSave.write(block)
-    #padding
+    # padding
     if algorithm_name != "ChaCha20":
         block = removepadding(block)
-    #write
+    # write
     fileToSave.write(block)
 
-
-    #close files
+    # close files
     fileToDecrypt.close()
     fileToSave.close()
 ####################################################################################################
 
-#suported algorithm and cipher modes
-cipherModes = ["ECB", "CFB","CBC", "OFB"]
-cipherAlgorithms = ['3DES','AES-128','ChaCha20']
+
+# suported algorithm and cipher modes
+cipherModes = ["ECB", "CFB", "CBC", "OFB"]
+cipherAlgorithms = ['3DES', 'AES-128', 'ChaCha20']
 
 if __name__ == "__main__":
-    
-    #argument parser
+
+    # argument parser
     parser = ArgumentParser()
-    #optional arguments
+    # optional arguments
     # -m --mode
     parser.add_argument('-m',
                         '--mode',
                         action='store',
                         default='ECB',
                         help="define cipher mode, default=ECB, you can use {} as option".format(", ".join(cipherModes)))
-    #mandatory arguments
+    # mandatory arguments
     parser_mandatory = parser.add_argument_group("mandatory arguments")
-    
-    parser_mandatory_action = parser_mandatory.add_mutually_exclusive_group(required=True)
+
+    parser_mandatory_action = parser_mandatory.add_mutually_exclusive_group(
+        required=True)
     # -e --encrypt
     parser_mandatory_action.add_argument('-e',
                                          '--encrypt',
@@ -241,7 +306,7 @@ if __name__ == "__main__":
                                   required=True,
                                   action='store',
                                   help="define cipher algorithm, you can use {} as option".format(", ".join(cipherAlgorithms)))
-    # -sf --sorceFile 
+    # -sf --sorceFile
     parser_mandatory.add_argument('-sf',
                                   '--sorceFile',
                                   required=True,
@@ -253,29 +318,26 @@ if __name__ == "__main__":
                                   required=True,
                                   action='store',
                                   help="file to save the encrypted or decrypted message")
-    #getting arguments
+    # getting arguments
     args = parser.parse_args()
     fileToSave_name = args.fileToSave
-    sorceFile_name  = args.sorceFile
-    algorithm_name  = args.algorithm
-    mode_name       = args.mode
+    sorceFile_name = args.sorceFile
+    algorithm_name = args.algorithm
+    mode_name = args.mode
 
-    #validate cipher mode
+    # validate cipher mode
     if mode_name not in cipherModes:
-        parser.exit(1, "cipher mode ERROR\n\t'{}' is not a valid option, see the -h or --help for get help\n".format(mode_name))
-    #validate algorithm
+        parser.exit(
+            1, "cipher mode ERROR\n\t'{}' is not a valid option, see the -h or --help for get help\n".format(mode_name))
+    # validate algorithm
     if algorithm_name not in cipherAlgorithms:
-        parser.exit(1, "algorithm name ERROR\n\t'{}' is not a valid option, see the -h or --help for get help\n".format(algorithm_name))
-    #algorithm chacha20 dont use cipher mode
+        parser.exit(
+            1, "algorithm name ERROR\n\t'{}' is not a valid option, see the -h or --help for get help\n".format(algorithm_name))
+    # algorithm chacha20 dont use cipher mode
     if algorithm_name == "ChaCha20":
         mode_name = None
-    
-    
-    
+
     if args.decrypt:
         decrypt(sorceFile_name, fileToSave_name, algorithm_name, mode_name)
     else:
         encrypt(sorceFile_name, fileToSave_name, algorithm_name, mode_name)
-    
-
-
